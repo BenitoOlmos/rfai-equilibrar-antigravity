@@ -1,0 +1,171 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  COORDINATOR
+  PROFESSIONAL
+  CLIENT
+
+  @@map("user_role")
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+
+  @@map("user_status")
+}
+
+enum QuestionType {
+  text
+  scale
+  choice
+
+  @@map("question_type_enum")
+}
+
+model User {
+  id        String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  email     String     @unique
+  role      UserRole
+  avatar    String?
+  status    UserStatus @default(ACTIVE)
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  clientProfile ClientProfile?
+  inscriptions  Inscription[]
+
+  @@map("users")
+}
+
+model ClientProfile {
+  userId      String    @id @map("user_id") @db.Uuid
+  currentWeek Int?      @default(1) @map("current_week")
+  startDate   DateTime  @map("start_date") @db.Date // Legacy field, might be redundant with Inscription
+  nextSession DateTime? @map("next_session") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  
+  // Datos demográficos extras para cumplir con types.ts Perfil
+  phone       String?   @map("phone")
+  documentId  String?   @map("document_id")
+  isapre      String?   @map("isapre")
+  insurance   String?   @map("insurance")
+  address     String?   @map("address")
+  region      String?   @map("region")
+  commune     String?   @map("commune")
+
+  user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekProgress       ClientWeekProgress[]
+  clinicalTestResults ClinicalTestResult[]
+  audioUsageStats    AudioUsageStats[]
+  guideResponses     ClientGuideResponse[]
+
+  @@map("client_profiles")
+}
+
+model ClientWeekProgress {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clientId           String   @map("client_id") @db.Uuid
+  weekNumber         Int      @map("week_number")
+  isLocked           Boolean? @default(true) @map("is_locked")
+  isCompleted        Boolean? @default(false) @map("is_completed")
+  initialTestDone    Boolean? @default(false) @map("initial_test_done")
+  guideCompleted     Boolean? @default(false) @map("guide_completed")
+  audioListenedCount Int?     @default(0) @map("audio_listened_count")
+  meetingAttended    Boolean? @default(false) @map("meeting_attended")
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  clientProfile ClientProfile @relation(fields: [clientId], references: [userId], onDelete: Cascade)
+
+  @@unique([clientId, weekNumber])
+  @@map("client_week_progress")
+}
+
+model ClinicalTestResult {
+  id                         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clientId                   String   @map("client_id") @db.Uuid
+  date                       DateTime @default(now()) @map("date") @db.Timestamptz(6)
+  weekNumber                 Int      @map("week_number")
+  scoreAutojuicio            Int      @map("score_autojuicio")
+  scoreCulpaNoAdaptativa     Int      @map("score_culpa_no_adaptativa")
+  scoreResponsabilidadConsciente Int  @map("score_responsabilidad_consciente")
+  scoreHumanizacionError     Int      @map("score_humanizacion_error")
+
+  clientProfile ClientProfile @relation(fields: [clientId], references: [userId], onDelete: Cascade)
+
+  @@index([clientId, date], map: "idx_clinical_tests_client_date")
+  @@map("clinical_test_results")
+}
+
+model AudioUsageStats {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clientId        String   @map("client_id") @db.Uuid
+  date            DateTime @default(now()) @map("date") @db.Timestamptz(6)
+  minutesListened Int      @default(0) @map("minutes_listened")
+  audioIdentifier String   @map("audio_identifier")
+
+  clientProfile ClientProfile @relation(fields: [clientId], references: [userId], onDelete: Cascade)
+
+  @@map("audio_usage_stats")
+}
+
+model GuideQuestion {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  weekNumber   Int          @map("week_number")
+  stepTitle    String?      @map("step_title") @db.VarChar(255)
+  questionText String       @map("question_text")
+  questionType QuestionType @map("question_type")
+  displayOrder Int          @map("display_order")
+
+  responses ClientGuideResponse[]
+
+  @@map("guide_questions")
+}
+
+model ClientGuideResponse {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clientId     String   @map("client_id") @db.Uuid
+  questionId   String   @map("question_id") @db.Uuid
+  responseText String?  @map("response_text")
+  responseDate DateTime @default(now()) @map("response_date") @db.Timestamptz(6)
+
+  clientProfile ClientProfile @relation(fields: [clientId], references: [userId], onDelete: Cascade)
+  question      GuideQuestion @relation(fields: [questionId], references: [id])
+
+  @@map("client_guide_responses")
+}
+
+// Nuevas tablas para soportar types.ts Inscripcion y Programa
+
+model Program {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String
+  description String
+  price       Int
+  
+  inscriptions Inscription[]
+
+  @@map("programs")
+}
+
+model Inscription {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  patientId String   @map("patient_id") @db.Uuid
+  programId String   @map("program_id") @db.Uuid
+  startDate DateTime @map("start_date") @db.Date
+  status    String   @default("active") // "activo", "completado", etc.
+
+  patient User    @relation(fields: [patientId], references: [id])
+  program Program @relation(fields: [programId], references: [id])
+
+  @@map("inscriptions")
+}

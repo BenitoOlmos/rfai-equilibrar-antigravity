@@ -51,6 +51,16 @@ CREATE TABLE IF NOT EXISTS client_profiles (
     current_week INTEGER DEFAULT 1 CHECK (current_week BETWEEN 1 AND 4),
     start_date DATE NOT NULL,
     next_session TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    
+    -- Campos extendidos para Perfil completo
+    phone TEXT,
+    document_id TEXT,
+    isapre TEXT,
+    insurance TEXT,
+    address TEXT,
+    region TEXT,
+    commune TEXT,
+
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -126,4 +136,25 @@ CREATE TABLE IF NOT EXISTS client_guide_responses (
     question_id UUID NOT NULL REFERENCES guide_questions(id),
     response_text TEXT,
     response_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ----------------------------------------------------------------------------
+-- 8. Programas (Nuevo para 3NF y soporte de Inscripciones)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS programs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    price INTEGER NOT NULL
+);
+
+-- ----------------------------------------------------------------------------
+-- 9. Inscripciones (Nuevo para gestionar relación Paciente-Programa)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS inscriptions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    patient_id UUID NOT NULL REFERENCES users(id),
+    program_id UUID NOT NULL REFERENCES programs(id),
+    start_date DATE NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active'
 );
