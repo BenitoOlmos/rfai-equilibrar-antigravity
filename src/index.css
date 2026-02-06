@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+/* Custom Global Styles preserved */
+body {
+  background-color: #f8fafc;
+  /* Prevent bounce scroll on mobile for clearer app-feel */
+  overscroll-behavior-y: none;
+}
+
+/* Custom scrollbar for luxury feel */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
