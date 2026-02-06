@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  db:
+    restart: always
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # En producción no montamos el script seed cada vez si ya existe el volumen, pero ok para inicializar
+
+  api:
+    restart: always
+    volumes: [] # Quitar volúmenes de desarrollo (código fuente) para usar solo la imagen construida
+    # Asumimos que la imagen ya tiene el código copiado (Dockerfile de backend lo hace)
+
+  frontend:
+    # Usar el Dockerfile de producción (Nginx)
+    build:
+      context: .
+      dockerfile: frontend.Dockerfile
+      args:
+        VITE_API_URL: http://localhost:3000/api
+    image: rfai-frontend-prod
+    container_name: rfai_frontend_prod
+    restart: always
+    ports:
+      - "80:80"
+    # Sobreescribir la config de DEV: Quitar volúmenes y comandos dev
+    volumes: []
+    command: [] # Usar CMD default del Dockerfile (nginx)
+    environment: [] # Vars quemadas en build time vía ARG, no necesarias en runtime para Nginx static
+
+volumes:
+  pgdata:
