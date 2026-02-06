@@ -1,50 +1,91 @@
 import React, { useState } from 'react';
 import { TEST_QUESTIONS_CULPA, TEST_QUESTIONS_ANGUSTIA, TEST_QUESTIONS_IRRITABILIDAD } from '../constants';
 import { ProgramType } from '../types';
+import { api } from '../src/services/api';
 
 interface TestModuleProps {
   program: ProgramType;
   onComplete: () => void;
   onClose: () => void;
+  userId: string;
+  weekNumber: number;
 }
 
-export const TestModule: React.FC<TestModuleProps> = ({ program, onComplete, onClose }) => {
+export const TestModule: React.FC<TestModuleProps> = ({ program, onComplete, onClose, userId, weekNumber }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState<Record<number, number>>({});
+  const [submitting, setSubmitting] = useState(false);
 
   // Select questions based on program
   let questions = TEST_QUESTIONS_CULPA;
   if (program === 'ANGUSTIA') questions = TEST_QUESTIONS_ANGUSTIA;
   if (program === 'IRRITABILIDAD') questions = TEST_QUESTIONS_IRRITABILIDAD;
 
-  const handleAnswer = (val: number) => {
-    setAnswers(prev => ({ ...prev, [questions[currentStep].id]: val }));
+  const handleAnswer = async (val: number) => {
+    // Optimistic UI update for speed
+    const newAnswers = { ...answers, [questions[currentStep].id]: val };
+    setAnswers(newAnswers);
+
     if (currentStep < questions.length - 1) {
       setTimeout(() => setCurrentStep(prev => prev + 1), 200);
     } else {
-      onComplete();
+      // Finished
+      setSubmitting(true);
+      try {
+        // Calculate scores based on categories mapping to Schema fields
+        // Simple aggregation logic for MVP
+        let scoreAutojuicio = 0;
+        let scoreCulpaNoAdaptativa = 0;
+        let scoreResponsabilidadConsciente = 0;
+        let scoreHumanizacionError = 0;
+
+        questions.forEach(q => {
+          const ans = newAnswers[q.id] || 0;
+          // Mock mapping
+          if (q.category === 'Autocastigo' || q.category === 'Somatización') scoreAutojuicio += ans;
+          else if (q.category === 'Rumia' || q.category === 'Anticipación Catastrófica') scoreCulpaNoAdaptativa += ans;
+          else if (q.category === 'Responsabilidad Excesiva') scoreResponsabilidadConsciente += ans;
+          else scoreHumanizacionError += ans; // Resto (Expectativas, Autocompasión, etc)
+        });
+
+        const payload = {
+          isCompleted: true,
+          testResults: {
+            scoreAutojuicio,
+            scoreCulpaNoAdaptativa,
+            scoreResponsabilidadConsciente,
+            scoreHumanizacionError
+          }
+        };
+
+        await api.progress.update(userId, weekNumber, payload);
+        onComplete(); // Notify parent to refresh/close
+      } catch (err) {
+        alert('Error guardando resultados. Intente nuevamente.');
+        setSubmitting(false); // Allow retry
+      }
     }
   };
 
   const progress = ((currentStep + 1) / questions.length) * 100;
   const currentQuestion = questions[currentStep];
 
-  // Theme colors based on program
+  // Theme colors... (same as before)
   let themeColor = 'bg-teal-600';
   let themeLight = 'bg-teal-50 text-teal-700 border-teal-500';
   let themeBar = 'bg-teal-400';
   let programTitle = 'Culpa';
 
   if (program === 'ANGUSTIA') {
-      themeColor = 'bg-indigo-600';
-      themeLight = 'bg-indigo-50 text-indigo-700 border-indigo-500';
-      themeBar = 'bg-indigo-400';
-      programTitle = 'Angustia';
+    themeColor = 'bg-indigo-600';
+    themeLight = 'bg-indigo-50 text-indigo-700 border-indigo-500';
+    themeBar = 'bg-indigo-400';
+    programTitle = 'Angustia';
   } else if (program === 'IRRITABILIDAD') {
-      themeColor = 'bg-orange-600';
-      themeLight = 'bg-orange-50 text-orange-700 border-orange-500';
-      themeBar = 'bg-orange-400';
-      programTitle = 'Irritabilidad';
+    themeColor = 'bg-orange-600';
+    themeLight = 'bg-orange-50 text-orange-700 border-orange-500';
+    themeBar = 'bg-orange-400';
+    programTitle = 'Irritabilidad';
   }
 
   return (
@@ -60,14 +101,22 @@ export const TestModule: React.FC<TestModuleProps> = ({ program, onComplete, onC
             <span className="opacity-75">/{questions.length}</span>
           </div>
         </div>
-        
-        <div className="h-2 bg-slate-100 w-full">
+
+        <div className="h-2 bg-slate-100 w-full relative">
           <div className={`h-full transition-all duration-500 ease-out ${themeBar}`} style={{ width: `${progress}%` }} />
+          {submitting && <div className="absolute inset-0 bg-white/50 animate-pulse"></div>}
         </div>
 
-        <div className="p-8 md:p-12">
+        <div className="p-8 md:p-12 relative">
+          {submitting && (
+            <div className="absolute inset-0 bg-white/80 z-10 flex items-center justify-center flex-col gap-2">
+              <div className="w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-sm font-bold text-slate-500">Guardando resultados...</p>
+            </div>
+          )}
+
           <div className="mb-2 text-xs font-bold uppercase text-slate-400 tracking-wider">
-              {currentQuestion.category}
+            {currentQuestion.category}
           </div>
           <h3 className="text-xl md:text-2xl text-slate-800 font-medium mb-8 text-center leading-relaxed min-h-[5rem] flex items-center justify-center">
             {currentQuestion.text}
@@ -77,11 +126,12 @@ export const TestModule: React.FC<TestModuleProps> = ({ program, onComplete, onC
             {[1, 2, 3, 4, 5].map((val) => (
               <button
                 key={val}
-                onClick={() => handleAnswer(val)}
+                onClick={() => !submitting && handleAnswer(val)}
+                disabled={submitting}
                 className={`
                   flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all duration-200
-                  ${answers[currentQuestion.id] === val 
-                    ? `${themeLight} scale-105 shadow-md` 
+                  ${answers[currentQuestion.id] === val
+                    ? `${themeLight} scale-105 shadow-md`
                     : 'border-slate-100 text-slate-400 hover:border-slate-300 hover:bg-slate-50'}
                 `}
               >
@@ -92,9 +142,9 @@ export const TestModule: React.FC<TestModuleProps> = ({ program, onComplete, onC
               </button>
             ))}
           </div>
-          
+
           <div className="flex justify-between items-center mt-8 text-sm text-slate-400">
-            <button onClick={onClose} className="hover:text-slate-600">Cancelar</button>
+            <button onClick={onClose} disabled={submitting} className="hover:text-slate-600 disabled:opacity-50">Cancelar</button>
             <div className="flex gap-2 text-xs">
               <span>1 = Muy en desacuerdo</span>
               <span>5 = Muy de acuerdo</span>
