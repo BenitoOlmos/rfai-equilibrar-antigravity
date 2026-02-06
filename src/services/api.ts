@@ -19,6 +19,26 @@ apiInstance.interceptors.request.use((config) => {
     return config;
 });
 
+// Interceptor para manejar errores 401 (Sesión Expirada)
+apiInstance.interceptors.response.use(
+    response => response,
+    error => {
+        if (error.response && error.response.status === 401) {
+            console.warn('Sesión expirada o no autorizada. Redirigiendo a login...');
+            localStorage.removeItem('user_session'); // Clear session
+            // Forzar recarga o redirección, dependiendo del routing.
+            // En este contexto simple, podríamos usar window.location
+            if (!window.location.pathname.includes('/login')) { // Avoid loops
+                // window.location.href = '/'; // Simple redirect to home/login
+                // O mejor, disparar un evento que App.tsx escuche, pero window.location es robusto para "Veto Estético" (no tocamos componentes)
+                window.location.reload();
+            }
+        }
+        return Promise.reject(error);
+    }
+);
+
+
 export const api = {
     auth: {
         login: async (email: string, password?: string): Promise<UsuarioConectado> => {

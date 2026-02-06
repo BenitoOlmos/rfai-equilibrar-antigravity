@@ -40,6 +40,7 @@ services:
     build:
       context: .
       dockerfile: frontend.Dockerfile
+      target: builder
       args:
         VITE_API_URL: http://localhost:3000/api
     container_name: rfai_frontend
@@ -49,7 +50,7 @@ services:
     # Pero Docker Compose usará la imagen final (nginx) si no especificamos target.
     # Truco: Usar una imagen node base aqui para dev, o targetear 'builder'.
     # Opción elegida: Usar imagen Node directa para Dev para garantizar experiencia DEV fluida
-    image: node:20-alpine
+    image: rfai-frontend-dev
     working_dir: /app
     ports:
       - "5173:5173"
